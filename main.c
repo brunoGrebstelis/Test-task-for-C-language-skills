@@ -19,7 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
+#include "application.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
@@ -27,6 +27,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
 
 /* USER CODE END PTD */
 
@@ -43,20 +44,7 @@
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-uint32_t time0;
-uint32_t time1;
-uint32_t time2;
-uint32_t time3;
 
-uint32_t min_switch_detected = UINT32_MAX;
-uint32_t max_switch_detected = UINT32_MAX;
-
-uint32_t DEBOUNCE_DELAY = 20;
-
-uint8_t state = 0;
-
-uint32_t MAX_ACTUATOR_TRAVEL_TIME = 10000;
-uint32_t MAX_ACTUATOR_TRAVEL_TIME2 = 20000;
 
 /* USER CODE END PV */
 
@@ -65,11 +53,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void move_actuator_extend(void);
-void move_actuator_shrink(void);
-void stop_actuator(void);
-void homing_function(void);
-void handle_fault(uint8_t actuatorFault);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -223,103 +207,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-void homing_function(void) { // predefined motions that are required in order to configure the system's absolute position after power up
-    switch(state) {
-        case 0: // Initial state, start shrinking
-            move_actuator_shrink();
-            time0 = HAL_GetTick();
-            state = 1;
-            break;
-        case 1: // Stop at the min switch, record time1, start extending
-            if (HAL_GetTick() - time0 > MAX_ACTUATOR_TRAVEL_TIME) { // Fault detection
-                 handle_fault(1);
-            } else if(HAL_GPIO_ReadPin(END_SWITCH_MIN_GPIO_Port, END_SWITCH_MIN_Pin) == GPIO_PIN_SET) {
-            	if(HAL_GetTick() - min_switch_detected > DEBOUNCE_DELAY){ // Wait for debounce period
-            		stop_actuator();
-            		state = 2;
-            		time1 = HAL_GetTick(); // Record the time
-            		move_actuator_extend();
-            		min_switch_detected = UINT32_MAX;
-            	}
-            } else {
-            	min_switch_detected = UINT32_MAX;
-            }
-            break;
-        case 2: // Stop at the max switch, record time2, start shrinking
-            if (HAL_GetTick() - time1 > MAX_ACTUATOR_TRAVEL_TIME2) { // Fault detection
-                 handle_fault(2);
-        	} else if(HAL_GPIO_ReadPin(END_SWITCH_MAX_GPIO_Port, END_SWITCH_MAX_Pin) == GPIO_PIN_SET) {
-            	if(HAL_GetTick() - max_switch_detected > DEBOUNCE_DELAY){ // Wait for debounce period
-            		stop_actuator();
-            		state = 3;
-            		time2 = HAL_GetTick(); // Record the time
-            		move_actuator_shrink();
-            		max_switch_detected = UINT32_MAX;
-            	}
-            } else {
-            	max_switch_detected = UINT32_MAX;
-            }
-            break;
-        case 3: // Stop at the min switch, record time3, start extending
-            if (HAL_GetTick() - time2 > MAX_ACTUATOR_TRAVEL_TIME) { // Fault detection
-                 handle_fault(1);
-            } else if(HAL_GPIO_ReadPin(END_SWITCH_MIN_GPIO_Port, END_SWITCH_MIN_Pin) == GPIO_PIN_SET) {
-            	if(HAL_GetTick() - min_switch_detected > DEBOUNCE_DELAY){ // Wait for debounce period
-            		stop_actuator();
-            		state = 4;
-            		time3 = HAL_GetTick(); // Record the time
-            		move_actuator_extend();
-            		min_switch_detected = UINT32_MAX;
-            	}
-            } else {
-            	min_switch_detected = UINT32_MAX;
-            }
-            break;
-        case 4: // Stop when the actuator reaches middle position
-            if(HAL_GetTick() - time3 >= (time2 -time1)/2) {
-            	stop_actuator();
-            }
-            break;
-    }
-}
-
-
-void move_actuator_extend(void) {
-   HAL_GPIO_WritePin(ACTUATOR_SHRINK_GPIO_Port, ACTUATOR_SHRINK_Pin, GPIO_PIN_RESET);
-   HAL_Delay(10); // Driver protection delay
-   HAL_GPIO_WritePin(ACTUATOR_EXTEND_GPIO_Port, ACTUATOR_EXTEND_Pin, GPIO_PIN_SET);
-}
-
-void move_actuator_shrink(void) {
-   HAL_GPIO_WritePin(ACTUATOR_EXTEND_GPIO_Port, ACTUATOR_EXTEND_Pin, GPIO_PIN_RESET);
-   HAL_Delay(10); // Driver protection delay
-   HAL_GPIO_WritePin(ACTUATOR_SHRINK_GPIO_Port, ACTUATOR_SHRINK_Pin, GPIO_PIN_SET);
-}
-
-void stop_actuator(void) {
-   HAL_GPIO_WritePin(ACTUATOR_EXTEND_GPIO_Port, ACTUATOR_EXTEND_Pin, GPIO_PIN_RESET);
-   HAL_GPIO_WritePin(ACTUATOR_SHRINK_GPIO_Port, ACTUATOR_SHRINK_Pin, GPIO_PIN_RESET);
-}
-
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) { // Record the time when the switch is first triggered
-    UNUSED(GPIO_Pin);
-    if (GPIO_Pin == END_SWITCH_MIN_Pin) min_switch_detected = HAL_GetTick();
-    if (GPIO_Pin == END_SWITCH_MAX_Pin) max_switch_detected = HAL_GetTick();
-}
-
-void handle_fault(uint8_t actuatorFault) {
-    stop_actuator();
-    switch (actuatorFault) {
-        case 1:
-            printf("Fault: Actuator not reaching the min switch.\n");
-            break;
-        case 2:
-            printf("Fault: Actuator not reaching the max switch/\n");
-            break;
-    }
-}
 
 
 /* USER CODE END 4 */
